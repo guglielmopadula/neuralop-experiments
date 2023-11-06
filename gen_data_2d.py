@@ -29,7 +29,7 @@ def compute(mu):
     uh = problem.solve()
     u_n.interpolate(fun_f)
     points = msh.geometry.x
-    return np.array(uh.vector),np.array(u_n.vector),points 
+    return np.array(u_n.vector),np.array(uh.vector),points 
 
 test_y,test_x,points=compute(1.0)
 points=np.array(points*100,dtype=np.int64)
