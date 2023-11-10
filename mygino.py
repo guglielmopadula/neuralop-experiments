@@ -1,6 +1,7 @@
 from meshtransport import generate_uniform_box_points,find_minimuum_bounding_box
 from meshtransport import KNeighBallChanger,KIWDBallChanger
 import torch
+import time
 from torch import nn
 import numpy as np
 from neuralop.models import TFNO3d
@@ -12,7 +13,7 @@ irregular_grid=(irregular_grid-np.min(irregular_grid))/(np.max(irregular_grid)-n
 inp_positions=irregular_grid
 
 
-rabbit_x=np.load("rabbit_u.npy")
+rabbit_x=np.load("rabbit_x.npy")
 rabbit_u=np.load("rabbit_u.npy")
 test_set=np.random.choice(np.arange(len(rabbit_u)),size=100,replace=False)
 train_set=np.array([i for i in np.arange(len(rabbit_u)) if i not in test_set])
@@ -29,8 +30,9 @@ rabbit_x_test=torch.tensor(rabbit_x_test,dtype=torch.float32)
 
 
 train_data=torch.utils.data.TensorDataset(rabbit_x_train,rabbit_u_train)
-train_data_loader=torch.utils.data.DataLoader(train_data,batch_size=200,shuffle=True)
-
+train_data_loader=torch.utils.data.DataLoader(train_data,batch_size=2,shuffle=True)
+test_data=torch.utils.data.TensorDataset(rabbit_x_test,rabbit_u_test)
+test_data_loader=torch.utils.data.DataLoader(test_data,batch_size=2,shuffle=True)
 radius=0.015
 
 class MyGeoTFNO(nn.Module):
@@ -58,10 +60,22 @@ epochs=1000
 
 for epoch in range(epochs):
     for data in train_data_loader:
+        start=time.time()
         rabbit_x_train,rabbit_u_train=data
         optimizer.zero_grad()
         y_pred = model(rabbit_x_train)
         l = loss(y_pred, rabbit_u_train)
         l.backward()
         optimizer.step()
+        print(l.item())
+        print
+
+model.eval()
+for data in test_data_loader:
+    rabbit_x_train,rabbit_u_train=data
+    y_pred = model(rabbit_x_train)
+    l = loss(y_pred, rabbit_u_train)
+    l.backward()
+    optimizer.step()
     print(l.item())
+
