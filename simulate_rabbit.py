@@ -59,8 +59,8 @@ def calculate_simulation(mu,nodes,elem,bary):
 if __name__=="__main__":
     np.random.seed(0)
     NUM_SAMPLES=300
-    points=np.load("points.npy")
-    tets=np.load("tetras.npy")
+    points=np.load("points.npy").astype(np.float64)
+    tets=np.load("tetras.npy").astype(np.float64)
     bary=np.mean(points,axis=0)
     value,uh,udh,points_mesh=calculate_simulation(1,points,tets,bary)
     energy_data=np.zeros(NUM_SAMPLES)
