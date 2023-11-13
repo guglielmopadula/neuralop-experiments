@@ -6,6 +6,7 @@ from dolfinx.io import XDMFFile
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 import time
+import dolfinx.fem.petsc
 from dolfinx.fem import FunctionSpace
 import pyvista
 from mpi4py import MPI
@@ -47,7 +48,7 @@ def calculate_simulation(mu,nodes,elem,bary):
     L = f * v * ufl.dx
     energy=fem.form(u* ufl.dx)
     points = domain.geometry.x
-    problem = fem.petsc.LinearProblem(a, L, bcs=[bc], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
+    problem = dolfinx.fem.petsc.LinearProblem(a, L, bcs=[bc], petsc_options={"ksp_type": "preonly", "pc_type": "lu"})
     uh = problem.solve()    
     value=fem.assemble.assemble_scalar(energy)
     u_val=uh.x.array
