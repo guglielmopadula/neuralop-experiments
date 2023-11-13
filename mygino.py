@@ -68,7 +68,7 @@ for epoch in range(epochs):
         l.backward()
         optimizer.step()
         print(l.item())
-        print
+        print(time.time()-start)
 
 model.eval()
 for data in test_data_loader:
