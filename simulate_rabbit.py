@@ -10,12 +10,9 @@ from dolfinx.fem import FunctionSpace
 import pyvista
 from mpi4py import MPI
 from dolfinx import mesh
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel
 import tetgen
 import meshio
 from tqdm import trange
-from scipy.interpolate import RBFInterpolator
 
 def volume_2_x(mesh):
     shape=mesh.shape
