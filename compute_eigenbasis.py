@@ -2,7 +2,12 @@ import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix, coo_matrix
 from scipy.sparse.linalg import spsolve
 from tqdm import trange
-from scipy.sparse.linalg import eigsh
+from scipy.sparse.linalg import eigsh,lobpcg
+from scipy.sparse import coo_matrix,csr_matrix
+import scipy.sparse
+import itertools
+import torch
+import scipy.io
 def circumcenter(a, b, c):
     l = np.array([
         np.linalg.norm(b - c)**2,
@@ -76,11 +81,96 @@ def dual_laplace(V, T):
 
     return L, M
 
-P=np.load("points.npy")
-T=np.load("tetras.npy")
-L,M=dual_laplace(P,T)
-eigs,vecs=eigsh(-L,k=64,M=M,which='SM',mode="buckling",sigma=0)
-lapl_spectrum_matrix=vecs
-np.save("lapl_spectrum_matrix.npy",lapl_spectrum_matrix)
 
-#eigvals, eigvecs = eigh(L.toarray(), M.toarray())
+
+def compute_edges_undirected(n_faces):
+    h=n_faces.shape[1]
+    comb=np.array(list(itertools.combinations(range(h),2)))
+    comb_bak=comb.copy()
+    comb[:,1]=comb_bak[:,0]
+    comb[:,0]=comb_bak[:,1]
+    comb=np.vstack((comb,comb_bak))
+    faces_comb=n_faces[:,comb].reshape(-1,2)
+    faces_comb=np.sort(faces_comb,axis=1)
+    faces_comb=np.unique(faces_comb,axis=0)
+    return faces_comb
+
+
+
+T=np.load("triangles_irr_2d_dense.npy")
+
+edges=compute_edges_undirected(T)
+
+
+def laplacian(edges):
+    """
+    Computes the laplacian matrix.
+    The definition of the laplacian is
+    L[i, j] = deg(i)       , if i == j
+    L[i, j] = -1  , if (i, j) is an edge
+    L[i, j] =    0        , otherwise
+    where deg(i) is the degree of the i-th vertex in the graph.
+
+    Args:
+        verts: tensor of shape (V, 3) containing the vertices of the graph
+        edges: tensor of shape (E, 2) containing the vertex indices of each edge
+    Returns:
+        L: Sparse FloatTensor of shape (V, V)
+    """
+    V = torch.max(edges) + 1
+
+    e0, e1 = edges.unbind(1)
+
+    idx01 = torch.stack([e0, e1], dim=1)  # (E, 2)
+    idx10 = torch.stack([e1, e0], dim=1)  # (E, 2)
+    idx = torch.cat([idx01, idx10], dim=0).t()  # (2, 2*E)
+
+    # First, we construct the adjacency matrix,
+    # i.e. A[i, j] = 1 if (i,j) is an edge, or
+    # A[e0, e1] = 1 &  A[e1, e0] = 1
+    ones = torch.ones(idx.shape[1], dtype=torch.float32, device=edges.device)
+    A = torch.sparse_coo_tensor(idx, ones, (V, V))
+
+    # the sum of i-th row of A gives the degree of the i-th vertex
+    deg = torch.sparse.sum(A, dim=1).to_dense()
+    # We construct the Laplacian matrix by adding the non diagonal values
+    # i.e. L[i, j] = -1 if (i, j) is an edge
+    deg0 = deg[e0]
+    deg0 = torch.where(deg0 > 0.0, -1.0, deg0)
+    deg1 = deg[e1]
+    deg1 = torch.where(deg1 > 0.0, -1.0, deg1)
+    val = torch.cat([deg0, deg1])
+    L = torch.sparse_coo_tensor(idx, val, (V, V))
+    # Then we add the diagonal values L[i, i] = deg(i).
+    idx = torch.arange(V, device=edges.device)
+    idx = torch.stack([idx, idx], dim=0)
+    L += torch.sparse_coo_tensor(idx, deg, (V, V))
+
+    return L
+
+
+T=np.load("triangles_irr_2d_dense.npy")
+edges=compute_edges_undirected(T)
+edges=torch.from_numpy(edges)
+L=laplacian(edges)
+w,v=torch.lobpcg(L,k=512,largest=False)
+v=v.numpy()
+z=np.load("fun_irr_2d_dense.npy")
+latent_dense=z@v
+
+print(np.linalg.norm(z-z@v@v.T)/np.linalg.norm(z))
+z_dense=z.copy()
+v_dense=v.copy()
+
+
+
+T=np.load("triangles_irr_2d.npy")
+edges=compute_edges_undirected(T)
+edges=torch.from_numpy(edges)
+L=laplacian(edges)
+w,v=torch.lobpcg(L,k=512,largest=False)
+v=v.numpy()
+z=np.load("fun_irr_2d.npy")
+latent=z@v
+
+print(np.linalg.norm(z_dense-latent@v_dense.T)/np.linalg.norm(z_dense))
